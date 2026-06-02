@@ -183,64 +183,66 @@ const SyllabusManagement = () => {
             <p className="text-gray-500">No syllabus found. Click "Add Syllabus" to create one.</p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
-                <th className="px-6 py-3 text-left text-sm font-semibold">Grade</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Subjects</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Description</th>
-                <th className="px-6 py-3 text-center text-sm font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {syllabus.map((item) => (
-                <tr key={item._id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">{item.grade}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex flex-wrap gap-2">
-                      {item.subjects?.map((subject, idx) => (
-                        <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                          {subject}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {item.description ? (
-                      <p className="line-clamp-2">{item.description}</p>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => { setSelectedItem(item); setIsViewModalOpen(true); }}
-                        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
-                        title="View"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        onClick={() => openEditModal(item)}
-                        className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1"
-                        title="Edit"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => deleteSyllabus(item)}
-                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Grade</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Subjects</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Description</th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {syllabus.map((item) => (
+                  <tr key={item._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">{item.grade}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex flex-wrap gap-2">
+                        {item.subjects?.map((subject, idx) => (
+                          <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                            {subject}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {item.description ? (
+                        <p className="line-clamp-2">{item.description}</p>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => { setSelectedItem(item); setIsViewModalOpen(true); }}
+                          className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
+                          title="View"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          onClick={() => openEditModal(item)}
+                          className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1"
+                          title="Edit"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => deleteSyllabus(item)}
+                          className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
