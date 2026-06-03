@@ -36,53 +36,29 @@ const EnrollmentRequests = () => {
     fetchRequests();
   }, [filter]);
 
-//   const handleApprove = async (request) => {
-//     if (!window.confirm(`Approve enrollment for ${request.firstName} ${request.lastName}?`)) return;
+  // Simplified approve - backend handles everything
+  const handleApprove = async (request) => {
+    if (!window.confirm(`Approve enrollment for ${request.firstName} ${request.lastName}?`)) return;
     
-//     try {
-//       const response = await fetch(`http://localhost:5000/api/enrollment/${request.id}/approve`, {
-//         method: 'PUT',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify({ reviewedBy: 'Admin' })
-//       });
-//       const data = await response.json();
+    try {
+      const response = await fetch(`http://localhost:5000/api/enrollment/${request.id}/approve`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewedBy: 'Admin' })
+      });
+      const data = await response.json();
       
-//       if (data.success) {
-//         toast.success(`Approved: ${request.firstName} ${request.lastName}`);
-//         fetchRequests();
-//       } else {
-//         toast.error(data.message || 'Failed to approve');
-//       }
-//     } catch (error) {
-//       toast.error('Failed to approve');
-//       console.error(error);
-//     }
-//   };
-const handleApprove = async (request) => {
-  if (!window.confirm(`Approve enrollment for ${request.firstName} ${request.lastName}?`)) return;
-  
-  try {
-    const response = await fetch(`http://localhost:5000/api/enrollment/${request.id}/approve`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reviewedBy: 'Admin' })
-    });
-    const data = await response.json();
-    
-    if (data.success) {
-      toast.success(`✅ ${request.firstName} ${request.lastName} has been approved and added to the student database!`);
-      fetchRequests(); // Refresh the list
-      
-      // Also refresh the Student Database page if it's open
-      window.dispatchEvent(new Event('studentListUpdated'));
-    } else {
-      toast.error(data.message || 'Failed to approve');
+      if (data.success) {
+        toast.success(`Approved: ${request.firstName} ${request.lastName} (${data.rollNumber || 'Roll number assigned'})`);
+        fetchRequests();
+      } else {
+        toast.error(data.message || 'Failed to approve');
+      }
+    } catch (error) {
+      toast.error('Failed to approve');
+      console.error(error);
     }
-  } catch (error) {
-    toast.error('Failed to approve');
-    console.error(error);
-  }
-};
+  };
 
   const openRejectModal = (requestId) => {
     setSelectedRejectId(requestId);
@@ -137,6 +113,7 @@ const handleApprove = async (request) => {
     const date = new Date(dateString);
     return date.toLocaleDateString();
   };
+  
 
   return (
     <div className="space-y-6">

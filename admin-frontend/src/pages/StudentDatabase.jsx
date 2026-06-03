@@ -1,18 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Download, Search, Edit, Trash2, Eye, RefreshCw } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Plus, Download, Search, Edit, Trash2, Eye, RefreshCw, Percent } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Modal from '../components/common/Modal';
 import Button from '../components/common/Button';
 import { studentService } from '../services/studentService';
 
 const StudentDatabase = () => {
+  const location = useLocation();
   const [students, setStudents] = useState([]);
   const [selectedClass, setSelectedClass] = useState('All Classes');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [attendanceStudent, setAttendanceStudent] = useState(null);
+  const [attendanceValue, setAttendanceValue] = useState('');
   const [formErrors, setFormErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,6 +36,42 @@ const StudentDatabase = () => {
     address: ''
   });
 
+  // ==================== GENERATE SEQUENTIAL ROLL NUMBER ====================
+  const generateRollNumber = (className) => {
+    // Map class to prefix
+    const prefixMap = {
+      'Pre-KG': 'PKG',
+      'LKG': 'LKG',
+      'UKG': 'UKG',
+      'PKG': 'PKG'
+    };
+    
+    const prefix = prefixMap[className] || 'STU';
+    
+    // Get existing roll numbers for this class
+    const existingRollNumbers = students
+      .filter(s => s.class === className)
+      .map(s => s.rollNumber)
+      .filter(r => r && r.startsWith(prefix));
+    
+    // Extract numbers and find the max
+    let maxNumber = 0;
+    existingRollNumbers.forEach(roll => {
+      const numPart = roll.replace(prefix, '');
+      const num = parseInt(numPart, 10);
+      if (!isNaN(num) && num > maxNumber) {
+        maxNumber = num;
+      }
+    });
+    
+    // Generate next number (start from 1 if none exist)
+    const nextNumber = maxNumber + 1;
+    // Format with 3 digits (001, 002, etc.)
+    const formattedNumber = nextNumber.toString().padStart(3, '0');
+    
+    return `${prefix}${formattedNumber}`;
+  };
+
   // ==================== LOAD DATA FROM BACKEND ====================
   const loadStudents = useCallback(async () => {
     setLoading(true);
@@ -46,6 +87,7 @@ const StudentDatabase = () => {
       // Transform backend data to match your format
       const transformedData = studentsData.map((item) => ({
         id: item._id || item.id,
+        rollNumber: item.rollNumber || 'N/A',
         firstName: item.name?.split(' ')[0] || '',
         lastName: item.name?.split(' ')[1] || '',
         dateOfBirth: item.dateOfBirth || '',
@@ -58,10 +100,22 @@ const StudentDatabase = () => {
         motherEmail: item.parentEmail || '',
         motherPhone: item.motherPhone || '',
         address: item.address || '',
-        rollNumber: item.rollNumber
+        attendance: item.attendance || 0
       }));
       
-      setStudents(transformedData);
+      // Sort by class and then by roll number
+      const sortedData = transformedData.sort((a, b) => {
+        const classOrder = { 'Pre-KG': 1, 'LKG': 2, 'UKG': 3 };
+        const classCompare = (classOrder[a.class] || 0) - (classOrder[b.class] || 0);
+        if (classCompare !== 0) return classCompare;
+        
+        // Extract numeric part from roll number for sorting
+        const aNum = parseInt(a.rollNumber?.replace(/[^0-9]/g, '')) || 0;
+        const bNum = parseInt(b.rollNumber?.replace(/[^0-9]/g, '')) || 0;
+        return aNum - bNum;
+      });
+      
+      setStudents(sortedData);
     } catch (error) {
       console.error('Error loading students:', error);
       toast.error('Failed to load students');
@@ -81,6 +135,56 @@ const StudentDatabase = () => {
   useEffect(() => {
     loadStudents();
   }, [loadStudents]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const query = params.get('search') || '';
+    setSearchQuery(query);
+  }, [location.search]);
+
+  // ==================== UPDATE ATTENDANCE ====================
+  const updateAttendance = async () => {
+    let attendanceNum = parseInt(attendanceValue);
+    if (isNaN(attendanceNum)) {
+      attendanceNum = 0;
+    }
+    if (attendanceNum < 0) attendanceNum = 0;
+    if (attendanceNum > 100) attendanceNum = 100;
+
+    const studentData = {
+      name: `${attendanceStudent.firstName} ${attendanceStudent.lastName}`,
+      rollNumber: attendanceStudent.rollNumber,
+      class: attendanceStudent.class === 'Pre-KG' ? 'PKG' : attendanceStudent.class,
+      contact: attendanceStudent.phoneNumber,
+      email: attendanceStudent.email,
+      parentEmail: attendanceStudent.motherEmail,
+      fatherName: attendanceStudent.fatherName,
+      motherName: attendanceStudent.motherName,
+      parentPhone: attendanceStudent.phoneNumber,
+      attendance: attendanceNum,
+      gender: attendanceStudent.gender,
+      address: attendanceStudent.address,
+      dateOfBirth: attendanceStudent.dateOfBirth
+    };
+
+    try {
+      await studentService.update(attendanceStudent.id, studentData);
+      toast.success(`Attendance updated to ${attendanceNum}%`);
+      await loadStudents();
+      setIsAttendanceModalOpen(false);
+      setAttendanceValue('');
+      setAttendanceStudent(null);
+    } catch (error) {
+      console.error('Error updating attendance:', error);
+      toast.error('Failed to update attendance');
+    }
+  };
+
+  const openAttendanceModal = (student) => {
+    setAttendanceStudent(student);
+    setAttendanceValue(student.attendance?.toString() || '0');
+    setIsAttendanceModalOpen(true);
+  };
 
   // ==================== VALIDATION FUNCTIONS ====================
   
@@ -300,18 +404,26 @@ const StudentDatabase = () => {
       'LKG': 'LKG',
       'UKG': 'UKG'
     };
+    
+    const backendClass = classMapping[formData.class] || formData.class;
+    
+    // Generate roll number if new student (not editing)
+    let rollNumber = editingStudent?.rollNumber;
+    if (!rollNumber) {
+      rollNumber = generateRollNumber(formData.class);
+    }
 
     const studentData = {
       name: `${formData.firstName} ${formData.lastName}`,
-      rollNumber: editingStudent?.rollNumber || `STU${Date.now()}`,
-      class: classMapping[formData.class] || formData.class,
+      rollNumber: rollNumber,
+      class: backendClass,
       contact: formData.phoneNumber,
       email: formData.email,
       parentEmail: formData.motherEmail,
       fatherName: formData.fatherName,
       motherName: formData.motherName,
       parentPhone: formData.phoneNumber,
-      attendance: 0,
+      attendance: editingStudent?.attendance || 0,
       gender: formData.gender,
       address: formData.address,
       dateOfBirth: formData.dateOfBirth
@@ -323,7 +435,7 @@ const StudentDatabase = () => {
         toast.success('Student updated successfully');
       } else {
         await studentService.create(studentData);
-        toast.success('Student added successfully');
+        toast.success(`Student added successfully! Roll Number: ${rollNumber}`);
       }
       await loadStudents();
       setIsModalOpen(false);
@@ -361,7 +473,7 @@ const StudentDatabase = () => {
 
   const deleteStudent = async (student) => {
     const fullName = `${student.firstName} ${student.lastName}`;
-    if (window.confirm(`Are you sure you want to delete ${fullName}?`)) {
+    if (window.confirm(`Are you sure you want to delete ${fullName} (${student.rollNumber})?`)) {
       try {
         await studentService.delete(student.id);
         toast.success('Student deleted successfully');
@@ -387,11 +499,19 @@ const StudentDatabase = () => {
         `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.fatherName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.motherName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.phoneNumber?.includes(searchQuery)
+        s.phoneNumber?.includes(searchQuery) ||
+        s.rollNumber?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
     return filteredStudents;
+  };
+
+  const getAttendanceColor = (percentage) => {
+    if (percentage >= 90) return 'text-green-600 bg-green-100';
+    if (percentage >= 75) return 'text-yellow-600 bg-yellow-100';
+    if (percentage >= 50) return 'text-orange-600 bg-orange-100';
+    return 'text-red-600 bg-red-100';
   };
 
   const exportToCSV = () => {
@@ -401,12 +521,12 @@ const StudentDatabase = () => {
       return;
     }
     
-    const csv = [['First Name', 'Last Name', 'Date of Birth', 'Gender', 'Class', 'Email', 'Phone', 'Father Name', 'Mother Name', 'Mother Email', 'Mother Phone', 'Address']];
+    const csv = [['Student ID', 'First Name', 'Last Name', 'Date of Birth', 'Gender', 'Class', 'Email', 'Phone', 'Father Name', 'Mother Name', 'Mother Email', 'Mother Phone', 'Address', 'Attendance %']];
     data.forEach(s => {
       csv.push([
-        s.firstName, s.lastName, s.dateOfBirth, s.gender, s.class, s.email || '', 
+        s.rollNumber, s.firstName, s.lastName, s.dateOfBirth, s.gender, s.class, s.email || '', 
         s.phoneNumber, s.fatherName, s.motherName, s.motherEmail || '', 
-        s.motherPhone || '', s.address
+        s.motherPhone || '', s.address, `${s.attendance || 0}%`
       ]);
     });
     
@@ -434,7 +554,7 @@ const StudentDatabase = () => {
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Student Information</h1>
-          <p className="text-gray-500 mt-1">Manage all student records</p>
+          <p className="text-gray-500 mt-1">Manage all student records and attendance</p>
         </div>
         <div className="flex gap-3">
           <Button onClick={refreshStudents} variant="outline" icon={RefreshCw} disabled={refreshing}>
@@ -463,7 +583,7 @@ const StudentDatabase = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
-                placeholder="Search by name, father name, mother name, or phone..."
+                placeholder="Search by name, student ID, father name, mother name, or phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
@@ -476,6 +596,7 @@ const StudentDatabase = () => {
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student ID</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">First Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOB</th>
@@ -484,12 +605,14 @@ const StudentDatabase = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Father Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mother Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attendance</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {getDisplayStudents().map((student) => (
                 <tr key={student.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-sm font-mono font-medium text-blue-600">{student.rollNumber}</td>
                   <td className="px-4 py-3 text-sm font-medium">{student.firstName}</td>
                   <td className="px-4 py-3 text-sm font-medium">{student.lastName}</td>
                   <td className="px-4 py-3 text-sm">{student.dateOfBirth}</td>
@@ -503,10 +626,27 @@ const StudentDatabase = () => {
                   <td className="px-4 py-3 text-sm">{student.motherName}</td>
                   <td className="px-4 py-3 text-sm">{student.phoneNumber}</td>
                   <td className="px-4 py-3 text-sm">
+                    <button
+                      onClick={() => openAttendanceModal(student)}
+                      className={`px-2 py-1 rounded-full text-xs font-semibold cursor-pointer hover:scale-105 transition-transform ${getAttendanceColor(student.attendance || 0)}`}
+                    >
+                      {student.attendance || 0}%
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-sm">
                     <div className="flex gap-2">
-                      <button onClick={() => { setSelectedStudent(student); setIsViewModalOpen(true); }} className="p-1 text-gray-600 hover:bg-gray-100 rounded"><Eye size={18} /></button>
-                      <button onClick={() => openEditModal(student)} className="p-1 text-blue-600 hover:bg-blue-50 rounded"><Edit size={18} /></button>
-                      <button onClick={() => deleteStudent(student)} className="p-1 text-red-600 hover:bg-red-50 rounded"><Trash2 size={18} /></button>
+                      <button onClick={() => { setSelectedStudent(student); setIsViewModalOpen(true); }} className="p-1 text-gray-600 hover:bg-gray-100 rounded" title="View Details">
+                        <Eye size={18} />
+                      </button>
+                      <button onClick={() => openEditModal(student)} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Edit Student">
+                        <Edit size={18} />
+                      </button>
+                      <button onClick={() => openAttendanceModal(student)} className="p-1 text-green-600 hover:bg-green-50 rounded" title="Mark Attendance">
+                        <Percent size={18} />
+                      </button>
+                      <button onClick={() => deleteStudent(student)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -679,11 +819,49 @@ const StudentDatabase = () => {
         </div>
       </Modal>
 
+      {/* Attendance Modal */}
+      <Modal isOpen={isAttendanceModalOpen} onClose={() => { setIsAttendanceModalOpen(false); setAttendanceValue(''); setAttendanceStudent(null); }} title="Update Attendance" size="sm">
+        <div className="space-y-4 p-6">
+          <div className="text-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center mx-auto mb-4">
+              <Percent size={32} className="text-purple-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800">
+              {attendanceStudent?.firstName} {attendanceStudent?.lastName}
+            </h3>
+            <p className="text-sm text-gray-500 mb-2">Student ID: {attendanceStudent?.rollNumber}</p>
+            <p className="text-sm text-gray-500">Class: {attendanceStudent?.class}</p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Attendance Percentage</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={attendanceValue}
+                onChange={(e) => setAttendanceValue(e.target.value)}
+                min="0"
+                max="100"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none"
+              />
+              <span className="text-gray-500">%</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Enter a value between 0 and 100</p>
+          </div>
+          
+          <div className="flex gap-3 pt-4">
+            <button onClick={updateAttendance} className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Update Attendance</button>
+            <button onClick={() => { setIsAttendanceModalOpen(false); setAttendanceValue(''); setAttendanceStudent(null); }} className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300">Cancel</button>
+          </div>
+        </div>
+      </Modal>
+
       {/* View Student Modal */}
       <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Student Details" size="lg">
         {selectedStudent && (
           <div className="space-y-4 p-6">
             <div className="grid grid-cols-2 gap-4">
+              <div><p className="text-sm text-gray-500">Student ID</p><p className="font-medium text-blue-600">{selectedStudent.rollNumber}</p></div>
               <div><p className="text-sm text-gray-500">First Name</p><p className="font-medium">{selectedStudent.firstName}</p></div>
               <div><p className="text-sm text-gray-500">Last Name</p><p className="font-medium">{selectedStudent.lastName}</p></div>
               <div><p className="text-sm text-gray-500">Date of Birth</p><p className="font-medium">{selectedStudent.dateOfBirth}</p></div>
@@ -692,7 +870,7 @@ const StudentDatabase = () => {
               <div><p className="text-sm text-gray-500">Father's Name</p><p className="font-medium">{selectedStudent.fatherName}</p></div>
               <div><p className="text-sm text-gray-500">Mother's Name</p><p className="font-medium">{selectedStudent.motherName}</p></div>
               <div><p className="text-sm text-gray-500">Phone Number</p><p className="font-medium">{selectedStudent.phoneNumber}</p></div>
-              <div><p className="text-sm text-gray-500">Mother's Phone</p><p className="font-medium">{selectedStudent.motherPhone || 'N/A'}</p></div>
+              <div><p className="text-sm text-gray-500">Attendance</p><p className="font-medium">{selectedStudent.attendance || 0}%</p></div>
               <div><p className="text-sm text-gray-500">Email</p><p className="font-medium">{selectedStudent.email || 'N/A'}</p></div>
               <div><p className="text-sm text-gray-500">Mother's Email</p><p className="font-medium">{selectedStudent.motherEmail || 'N/A'}</p></div>
               <div className="col-span-2"><p className="text-sm text-gray-500">Address</p><p className="font-medium">{selectedStudent.address}</p></div>

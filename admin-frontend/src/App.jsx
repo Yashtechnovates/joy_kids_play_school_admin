@@ -19,6 +19,8 @@ import Settings from './pages/Settings';
 import EnrollmentRequests from './pages/EnrollmentRequests';
 
 
+
+
 function App() {
   return (
     <Router>
@@ -41,6 +43,7 @@ function App() {
               <Route path="fees" element={<Fees />} />
               <Route path="settings" element={<Settings />} />
               <Route path="enrollment-requests" element={<EnrollmentRequests />} />
+
             </Route>
           </Routes>
         </DataProvider>
