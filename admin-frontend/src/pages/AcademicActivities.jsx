@@ -66,6 +66,26 @@ const AcademicActivities = () => {
 
   const getMaxDate = () => new Date().toISOString().split('T')[0];
 
+  // Class mapping for display
+  const mapClassForDisplay = (classValue) => {
+    const mapping = {
+      'PKG': 'Pre-KG',
+      'LKG': 'LKG',
+      'UKG': 'UKG'
+    };
+    return mapping[classValue] || classValue || 'Pre-KG';
+  };
+
+  // Class mapping for database storage
+  const mapClassForDatabase = (classValue) => {
+    const mapping = {
+      'Pre-KG': 'PKG',
+      'LKG': 'LKG',
+      'UKG': 'UKG'
+    };
+    return mapping[classValue] || classValue;
+  };
+
   // Drag & Drop handlers
   const handleDrag = (e) => {
     e.preventDefault();
@@ -123,7 +143,6 @@ const AcademicActivities = () => {
       console.log('Admin API Response:', response);
       
       let reportsData = [];
-      // Handle different response structures
       if (response && response.success === true && Array.isArray(response.data)) {
         reportsData = response.data;
       } else if (Array.isArray(response)) {
@@ -138,7 +157,7 @@ const AcademicActivities = () => {
         id: report._id || report.id,
         studentId: report.id,
         studentName: report.name,
-        studentClass: report.class || 'Pre-KG',
+        studentClass: mapClassForDisplay(report.class),
         date: report.date ? new Date(report.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         todayActivity: report.todayActivity,
         participation: report.participation === true ? 'Present' : 'Absent',
@@ -193,7 +212,7 @@ const AcademicActivities = () => {
     const reportData = {
       id: formData.studentId,
       name: formData.studentName,
-      class: formData.studentClass,
+      class: mapClassForDatabase(formData.studentClass),
       profileImg: formData.studentImage || formData.studentImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.studentName)}&background=3b82f6&color=fff`,
       todayActivity: formData.todayActivity,
       participation: formData.participation === 'Present',
@@ -203,17 +222,15 @@ const AcademicActivities = () => {
       date: formData.date ? new Date(formData.date) : new Date()
     };
 
-    console.log('Saving report to backend:', reportData);
+    console.log('📤 Saving report with class:', reportData.class);
 
     try {
       let response;
       if (editingReport) {
         response = await reportService.update(editingReport.id, reportData);
-        console.log('Update response:', response);
         toast.success('Report updated successfully');
       } else {
         response = await reportService.create(reportData);
-        console.log('Create response:', response);
         toast.success('Report added successfully');
       }
       
