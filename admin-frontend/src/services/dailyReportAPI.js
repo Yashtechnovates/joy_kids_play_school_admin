@@ -1,34 +1,3 @@
-// import { request } from './api';
-
-// export const reportService = {
-//   getAll: async (filters = {}) => {
-//     const queryParams = new URLSearchParams(filters).toString();
-//     // CHANGE FROM /reports TO /dailyreports
-//     const endpoint = `/dailyreports${queryParams ? `?${queryParams}` : ''}`;
-//     return request(endpoint, 'GET');
-//   },
-
-//   getById: async (id) => {
-//     // CHANGE FROM /reports TO /dailyreports
-//     return request(`/dailyreports/${id}`, 'GET');
-//   },
-
-//   create: async (reportData) => {
-//     // CHANGE FROM /reports TO /dailyreports
-//     return request('/dailyreports', 'POST', reportData);
-//   },
-
-//   update: async (id, reportData) => {
-//     // CHANGE FROM /reports TO /dailyreports
-//     return request(`/dailyreports/${id}`, 'PUT', reportData);
-//   },
-
-//   delete: async (id) => {
-//     // CHANGE FROM /reports TO /dailyreports
-//     return request(`/dailyreports/${id}`, 'DELETE');
-//   },
-// };
-
 import { request } from './api';
 
 export const reportService = {
